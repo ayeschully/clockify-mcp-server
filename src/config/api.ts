@@ -1,15 +1,27 @@
+import "dotenv/config";
 import axios from "axios";
 
 export const api = axios.create({
-  baseURL: process.env.CLOCKIFY_API_URL || 'https://api.clockify.me/api/v1',
-  headers: {
-    "X-Api-Key": `${process.env.CLOCKIFY_API_TOKEN}`,
-  },
+  baseURL: process.env.CLOCKIFY_API_URL || "https://api.clockify.me/api/v1",
 });
+
+// The Reports API lives on its own host and provides workspace-wide
+// aggregations that the base API can't (e.g. time per project across users)
+export const reportsApi = axios.create({
+  baseURL:
+    process.env.CLOCKIFY_REPORTS_API_URL || "https://reports.api.clockify.me/v1",
+});
+
+// Clockify only accepts API keys via the X-Api-Key header. Sending the key
+// as an Authorization Bearer token is rejected with a 401
+export function setApiToken(token: string) {
+  api.defaults.headers.common["X-Api-Key"] = token;
+  reportsApi.defaults.headers.common["X-Api-Key"] = token;
+}
 
 export const SERVER_CONFIG = {
   name: "Clockify MCP Server",
-  version: "1.0.0",
+  version: "1.2.0",
   description:
     "A service that integrates with Clockify API to manage time entries",
 };
@@ -28,12 +40,34 @@ export const TOOLS_CONFIG = {
       description:
         "Get workspace projects id and name, the projects can be associated with time entries",
     },
+    edit: {
+      name: "edit-project",
+      description:
+        "Edit an existing project in a workspace (name, client, color, note, billable, visibility or archived state)",
+    },
   },
   users: {
     current: {
       name: "get-current-user",
       description:
         "Get the current user id and name, to search for entries is required to have the user id",
+    },
+    list: {
+      name: "list-users",
+      description:
+        "List all members of a workspace with their id, name, email and status",
+    },
+  },
+  reports: {
+    summary: {
+      name: "get-summary-report",
+      description:
+        "Get total tracked time grouped by project across ALL workspace members, optionally filtered to specific projects. Use this to check whether time has been logged to a project, since list-time-entries only covers a single user",
+    },
+    hoursByClient: {
+      name: "get-hours-by-client",
+      description:
+        "Get total hours worked per client for a date range in a workspace, aggregated on the server. Returns a compact summary (hours per client + total) instead of raw time entries. Note: projects are grouped by their Clockify client name.",
     },
   },
   entries: {
@@ -55,11 +89,40 @@ export const TOOLS_CONFIG = {
       description: "Edit an existing time entry in a workspace",
     },
   },
-  reports: {
-    hoursByClient: {
-      name: "get-hours-by-client",
+  tags: {
+    list: {
+      name: "get-tags",
+      description: "Get all tags in a workspace",
+    },
+    create: {
+      name: "create-tag",
+      description: "Create a new tag in a workspace",
+    },
+    edit: {
+      name: "edit-tag",
+      description: "Rename or archive an existing tag in a workspace",
+    },
+  },
+  tasks: {
+    list: {
+      name: "list-tasks",
       description:
-        "Get total hours worked per client for a date range in a workspace, aggregated on the server. Returns a compact summary (hours per client + total) instead of raw time entries. Note: projects are grouped by their Clockify client name.",
+        "List tasks (activities) within a project. Tasks can be associated with time entries.",
+    },
+    create: {
+      name: "create-task",
+      description:
+        "Create a new task (activity) within a project. The created task can be associated with time entries.",
+    },
+    edit: {
+      name: "edit-task",
+      description:
+        "Edit an existing task (activity) in a project, renaming it, marking it as active/done or reassigning it",
+    },
+    delete: {
+      name: "delete-task",
+      description:
+        "Permanently delete a task (activity) from a project. Requires an admin API token — Clockify returns 403 for non-admins regardless of the task's status. To close a task without deleting it, use edit-task with status DONE.",
     },
   },
 };

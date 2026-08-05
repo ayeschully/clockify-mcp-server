@@ -8,20 +8,19 @@ import {
 } from "../types";
 import { URLSearchParams } from "node:url";
 import { fetchAllPages } from "../config/pagination";
+import { omitUndefined } from "../config/object-utils";
 
 function EntriesService(api: AxiosInstance) {
   async function create(entry: TCreateEntrySchema) {
     const { workspaceId, ...rest } = entry;
 
-    // Filter out undefined values to avoid sending nulls to Clockify
-    const body = Object.fromEntries(
-      Object.entries(rest).filter(([_, value]) => value !== undefined)
+    return api.post(
+      `workspaces/${workspaceId}/time-entries`,
+      omitUndefined(rest)
     );
-
-    return api.post(`workspaces/${workspaceId}/time-entries`, body);
   }
 
-  async function find(filters: TFindEntrySchema) {
+  async function find(filters: TFindEntrySchema & { userId: string }) {
     const searchParams = new URLSearchParams();
 
     if (filters.description)
@@ -51,14 +50,9 @@ function EntriesService(api: AxiosInstance) {
   async function update(params: TEditEntrySchema) {
     const { workspaceId, timeEntryId, ...rest } = params;
 
-    // Filter out undefined values to avoid sending nulls to Clockify
-    const body = Object.fromEntries(
-      Object.entries(rest).filter(([_, value]) => value !== undefined)
-    );
-
     return api.put(
       `workspaces/${workspaceId}/time-entries/${timeEntryId}`,
-      body
+      omitUndefined(rest)
     );
   }
 

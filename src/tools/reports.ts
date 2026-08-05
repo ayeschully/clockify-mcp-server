@@ -1,9 +1,70 @@
 import { z } from "zod";
 import { TOOLS_CONFIG } from "../config/api";
+import { reportsService } from "../clockify-sdk/reports";
 import { entriesService } from "../clockify-sdk/entries";
 import { projectsService } from "../clockify-sdk/projects";
 import { usersService } from "../clockify-sdk/users";
-import { McpResponse, McpToolConfig } from "../types";
+import { McpResponse, McpToolConfig, TSummaryReportSchema } from "../types";
+
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.round((seconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
+}
+
+export const summaryReportTool: McpToolConfig = {
+  name: TOOLS_CONFIG.reports.summary.name,
+  description: TOOLS_CONFIG.reports.summary.description,
+  parameters: {
+    workspaceId: z.string().describe("The id of the workspace to report on"),
+    start: z.coerce
+      .date()
+      .describe("Start of the reporting period, e.g. 2026-01-01"),
+    end: z.coerce
+      .date()
+      .describe("End of the reporting period, e.g. 2026-12-31"),
+    projectIds: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Optional list of project ids to filter the report to. Omit to report on all projects"
+      ),
+  },
+  handler: async (params: TSummaryReportSchema): Promise<McpResponse> => {
+    try {
+      const result = await reportsService.summary(params);
+
+      const totalSeconds = result.data.totals?.[0]?.totalTime ?? 0;
+
+      const projects = (result.data.groupOne ?? []).map((project: any) => ({
+        projectId: project._id,
+        projectName: project.name,
+        totalTime: formatDuration(project.duration),
+        totalSeconds: project.duration,
+        byUser: (project.children ?? []).map((user: any) => ({
+          userId: user._id,
+          userName: user.name,
+          time: formatDuration(user.duration),
+        })),
+      }));
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              total: formatDuration(totalSeconds),
+              totalSeconds,
+              projects,
+            }),
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get summary report: ${error.message}`);
+    }
+  },
+};
 
 /**
  * Derive the hours for a single time entry.

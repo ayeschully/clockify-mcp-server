@@ -7,8 +7,14 @@ import {
   ReadResourceTemplateCallback,
   ResourceMetadata,
   ResourceTemplate,
-} from "@modelcontextprotocol/sdk/server/mcp";
+} from "@modelcontextprotocol/sdk/server/mcp.js";
 import { FindProjectSchema } from "../validation/projects/find-project-schema";
+import { EditProjectSchema } from "../validation/projects/edit-project-schema";
+import { EditTagSchema } from "../validation/tags/edit-tag-schema";
+import { EditTaskSchema } from "../validation/tasks/edit-task-schema";
+import { CreateTaskSchema } from "../validation/tasks/create-task-schema";
+import { DeleteTaskSchema } from "../validation/tasks/delete-task-schema";
+import { SummaryReportSchema } from "../validation/reports/summary-report-schema";
 
 export type TCreateEntrySchema = z.infer<typeof CreateEntrySchema>;
 
@@ -19,6 +25,18 @@ export type TDeleteEntrySchema = z.infer<typeof DeleteEntrySchema>;
 export type TEditEntrySchema = z.infer<typeof EditEntrySchema>;
 
 export type TFindProjectSchema = z.infer<typeof FindProjectSchema>;
+
+export type TEditProjectSchema = z.infer<typeof EditProjectSchema>;
+
+export type TEditTagSchema = z.infer<typeof EditTagSchema>;
+
+export type TEditTaskSchema = z.infer<typeof EditTaskSchema>;
+
+export type TCreateTaskSchema = z.infer<typeof CreateTaskSchema>;
+
+export type TDeleteTaskSchema = z.infer<typeof DeleteTaskSchema>;
+
+export type TSummaryReportSchema = z.infer<typeof SummaryReportSchema>;
 
 export interface ClockifyWorkspace {
   id: string;

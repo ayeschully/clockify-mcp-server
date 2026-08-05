@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TOOLS_CONFIG } from "../config/api";
 import { entriesService } from "../clockify-sdk/entries";
+import { usersService } from "../clockify-sdk/users";
 import {
   McpResponse,
   McpToolConfig,
@@ -67,8 +68,9 @@ export const listEntriesTool: McpToolConfig = {
       .describe("The id of the workspace that gonna search for the entries"),
     userId: z
       .string()
+      .optional()
       .describe(
-        "The id of the user that gonna have the entries searched, default is the current user id"
+        "The id of the user whose entries will be searched. Defaults to the current user. Note this tool is per-user; use get-summary-report to check time across all workspace members"
       ),
     description: z
       .string()
@@ -87,11 +89,14 @@ export const listEntriesTool: McpToolConfig = {
       .optional()
       .describe("The id of the project to search for entries"),
   },
-  handler: async (params: TFindEntrySchema) => {
+  handler: async (params: TFindEntrySchema): Promise<McpResponse> => {
     try {
-      const result = await entriesService.find(params);
+      const userId =
+        params.userId ?? (await usersService.getCurrent()).data.id;
 
-      const formmatedResults = result.data.map((entry: any) => ({
+      const result = await entriesService.find({ ...params, userId });
+
+      const formattedResults = result.data.map((entry: any) => ({
         id: entry.id,
         description: entry.description,
         duration: entry.duration,
@@ -111,7 +116,7 @@ export const listEntriesTool: McpToolConfig = {
         content: [
           {
             type: "text",
-            text: JSON.stringify(formmatedResults),
+            text: JSON.stringify(formattedResults),
           },
         ],
       };

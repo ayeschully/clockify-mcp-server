@@ -1,11 +1,11 @@
-import { api } from "../config/api";
-import { fetchAllPages } from "../config/pagination";
 import { z } from "zod";
-import { McpResponse, McpToolConfig } from "../types";
+import { TOOLS_CONFIG } from "../config/api";
+import { tagsService } from "../clockify-sdk/tags";
+import { McpResponse, McpToolConfig, TEditTagSchema } from "../types";
 
 export const createTagTool: McpToolConfig = {
-  name: "create-tag",
-  description: "Create a new tag in a workspace",
+  name: TOOLS_CONFIG.tags.create.name,
+  description: TOOLS_CONFIG.tags.create.description,
   parameters: {
     workspaceId: z
       .string()
@@ -19,48 +19,95 @@ export const createTagTool: McpToolConfig = {
     workspaceId: string;
     name: string;
   }): Promise<McpResponse> => {
-    const response = await api.post(`workspaces/${workspaceId}/tags`, {
-      name,
-    });
+    try {
+      const response = await tagsService.create(workspaceId, name);
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Tag created successfully. ID: ${response.data.id} Name: ${response.data.name}`,
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Tag created successfully. ID: ${response.data.id} Name: ${response.data.name}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create tag: ${error.message}`);
+    }
   },
 };
 
 export const getTagsTool: McpToolConfig = {
-  name: "get-tags",
-  description: "Get all tags in a workspace",
+  name: TOOLS_CONFIG.tags.list.name,
+  description: TOOLS_CONFIG.tags.list.description,
   parameters: {
     workspaceId: z
       .string()
       .describe("The ID of the workspace to get tags from"),
   },
-  handler: async ({ workspaceId }: { workspaceId: string }): Promise<McpResponse> => {
+  handler: async ({
+    workspaceId,
+  }: {
+    workspaceId: string;
+  }): Promise<McpResponse> => {
     if (!workspaceId || typeof workspaceId !== "string") {
       throw new Error("Workspace ID required to fetch tags");
     }
 
-    const data = await fetchAllPages<any>(`workspaces/${workspaceId}/tags`);
-    const tags = data.map((tag) => ({
-      id: tag.id,
-      name: tag.name,
-      workspaceId: tag.workspaceId,
-    }));
+    try {
+      const response = await tagsService.fetchAll(workspaceId);
+      const tags = response.data.map((tag: any) => ({
+        id: tag.id,
+        name: tag.name,
+        workspaceId: tag.workspaceId,
+        archived: tag.archived,
+      }));
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(tags),
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(tags),
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to retrieve tags: ${error.message}`);
+    }
+  },
+};
+
+export const editTagTool: McpToolConfig = {
+  name: TOOLS_CONFIG.tags.edit.name,
+  description: TOOLS_CONFIG.tags.edit.description,
+  parameters: {
+    workspaceId: z
+      .string()
+      .describe("The id of the workspace where the tag is located"),
+    tagId: z.string().describe("The id of the tag to be edited"),
+    name: z
+      .string()
+      .describe(
+        "The name of the tag. Required by the Clockify API even when only archiving, so pass the current name to keep it unchanged"
+      ),
+    archived: z
+      .boolean()
+      .optional()
+      .describe("Set to true to archive the tag, false to restore it"),
+  },
+  handler: async (params: TEditTagSchema): Promise<McpResponse> => {
+    try {
+      const result = await tagsService.update(params);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Tag updated successfully. ID: ${result.data.id} Name: ${result.data.name}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to edit tag: ${error.message}`);
+    }
   },
 };

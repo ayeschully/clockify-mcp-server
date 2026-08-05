@@ -1,12 +1,62 @@
-import { api } from "../config/api";
-import { fetchAllPages } from "../config/pagination";
 import { z } from "zod";
-import { McpResponse, McpToolConfig } from "../types";
+import { TOOLS_CONFIG } from "../config/api";
+import { tasksService } from "../clockify-sdk/tasks";
+import {
+  McpResponse,
+  McpToolConfig,
+  TCreateTaskSchema,
+  TDeleteTaskSchema,
+  TEditTaskSchema,
+} from "../types";
+
+export const listTasksTool: McpToolConfig = {
+  name: TOOLS_CONFIG.tasks.list.name,
+  description: TOOLS_CONFIG.tasks.list.description,
+  parameters: {
+    workspaceId: z.string().describe("The ID of the workspace"),
+    projectId: z.string().describe("The ID of the project to get tasks from"),
+  },
+  handler: async ({
+    workspaceId,
+    projectId,
+  }: {
+    workspaceId: string;
+    projectId: string;
+  }): Promise<McpResponse> => {
+    if (!workspaceId || typeof workspaceId !== "string") {
+      throw new Error("Workspace ID required to fetch tasks");
+    }
+    if (!projectId || typeof projectId !== "string") {
+      throw new Error("Project ID required to fetch tasks");
+    }
+
+    try {
+      const response = await tasksService.fetchAll(workspaceId, projectId);
+      const tasks = response.data.map((task: any) => ({
+        id: task.id,
+        name: task.name,
+        projectId: task.projectId,
+        status: task.status,
+        assigneeIds: task.assigneeIds,
+      }));
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(tasks),
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to retrieve tasks: ${error.message}`);
+    }
+  },
+};
 
 export const createTaskTool: McpToolConfig = {
-  name: "create-task",
-  description:
-    "Create a new task (activity) within a project. The created task can be associated with time entries.",
+  name: TOOLS_CONFIG.tasks.create.name,
+  description: TOOLS_CONFIG.tasks.create.description,
   parameters: {
     workspaceId: z
       .string()
@@ -24,137 +74,82 @@ export const createTaskTool: McpToolConfig = {
       .optional()
       .describe("Optional status of the task (defaults to ACTIVE)"),
   },
-  handler: async ({
-    workspaceId,
-    projectId,
-    name,
-    assigneeIds,
-    status,
-  }: {
-    workspaceId: string;
-    projectId: string;
-    name: string;
-    assigneeIds?: string[];
-    status?: "ACTIVE" | "DONE";
-  }): Promise<McpResponse> => {
-    if (!workspaceId || typeof workspaceId !== "string") {
-      throw new Error("Workspace ID required to create a task");
-    }
-    if (!projectId || typeof projectId !== "string") {
-      throw new Error("Project ID required to create a task");
-    }
-    if (!name || typeof name !== "string") {
-      throw new Error("Task name required to create a task");
-    }
+  handler: async (params: TCreateTaskSchema): Promise<McpResponse> => {
+    try {
+      const result = await tasksService.create(params);
 
-    const response = await api.post(
-      `workspaces/${workspaceId}/projects/${projectId}/tasks`,
-      {
-        name,
-        ...(assigneeIds ? { assigneeIds } : {}),
-        ...(status ? { status } : {}),
-      }
-    );
-
-    const task = response.data;
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Task created successfully. ID: ${task.id} Name: ${task.name} Status: ${task.status}`,
-        },
-      ],
-    };
+      const task = result.data;
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Task created successfully. ID: ${task.id} Name: ${task.name} Status: ${task.status}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to create task: ${error.message}`);
+    }
   },
 };
 
-export const updateTaskTool: McpToolConfig = {
-  name: "update-task",
-  description:
-    "Update a task (activity) in a project: rename it, change its status (ACTIVE/DONE), and/or reassign it. Clockify's PUT requires a name, so if you omit `name` the task's current name is fetched and preserved (lets you mark DONE or reassign without renaming).",
+export const editTaskTool: McpToolConfig = {
+  name: TOOLS_CONFIG.tasks.edit.name,
+  description: TOOLS_CONFIG.tasks.edit.description,
   parameters: {
     workspaceId: z
       .string()
-      .describe("The ID of the workspace that contains the project"),
+      .describe("The id of the workspace where the task is located"),
     projectId: z
       .string()
-      .describe("The ID of the project that contains the task"),
-    taskId: z.string().describe("The ID of the task to update"),
-    name: z
-      .string()
-      .optional()
-      .describe("New task name (rename). If omitted, the existing name is preserved."),
+      .describe("The id of the project the task belongs to"),
+    taskId: z.string().describe("The id of the task to be edited"),
+    name: z.string().optional().describe("The new name of the task"),
     status: z
       .enum(["ACTIVE", "DONE"])
       .optional()
-      .describe("New status for the task"),
+      .describe("The status of the task, ACTIVE or DONE"),
     assigneeIds: z
       .array(z.string())
       .optional()
       .describe("Replacement array of assignee user IDs"),
   },
-  handler: async ({
-    workspaceId,
-    projectId,
-    taskId,
-    name,
-    status,
-    assigneeIds,
-  }: {
-    workspaceId: string;
-    projectId: string;
-    taskId: string;
-    name?: string;
-    status?: "ACTIVE" | "DONE";
-    assigneeIds?: string[];
-  }): Promise<McpResponse> => {
-    if (!workspaceId || typeof workspaceId !== "string") {
-      throw new Error("Workspace ID required to update a task");
-    }
-    if (!projectId || typeof projectId !== "string") {
-      throw new Error("Project ID required to update a task");
-    }
-    if (!taskId || typeof taskId !== "string") {
-      throw new Error("Task ID required to update a task");
-    }
-    if (name === undefined && status === undefined && assigneeIds === undefined) {
-      throw new Error(
-        "Provide at least one of name, status, or assigneeIds to update"
+  handler: async (params: TEditTaskSchema): Promise<McpResponse> => {
+    try {
+      // The Clockify API requires a name on task updates, so fetch the
+      // current task and merge it with the provided params
+      const current = await tasksService.getById(
+        params.workspaceId,
+        params.projectId,
+        params.taskId
       );
+
+      const result = await tasksService.update({
+        workspaceId: params.workspaceId,
+        projectId: params.projectId,
+        taskId: params.taskId,
+        name: params.name ?? current.data.name,
+        status: params.status ?? current.data.status,
+        assigneeIds: params.assigneeIds ?? current.data.assigneeIds,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Task updated successfully. ID: ${result.data.id} Name: ${result.data.name} Status: ${result.data.status}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to edit task: ${error.message}`);
     }
-
-    const path = `workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`;
-
-    // Clockify's PUT is a full replace and requires a name; preserve the
-    // current one when the caller only wants to change status/assignees.
-    let taskName = name;
-    if (taskName === undefined) {
-      const got = await api.get(path);
-      taskName = got.data?.name;
-    }
-
-    const response = await api.put(path, {
-      name: taskName,
-      ...(status ? { status } : {}),
-      ...(assigneeIds ? { assigneeIds } : {}),
-    });
-
-    const task = response.data;
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Task updated successfully. ID: ${task.id} Name: ${task.name} Status: ${task.status}`,
-        },
-      ],
-    };
   },
 };
 
 export const deleteTaskTool: McpToolConfig = {
-  name: "delete-task",
-  description:
-    "Permanently delete a task (activity) from a project. Requires an admin API token — Clockify returns 403 for non-admins regardless of the task's status. To close a task without deleting it, use update-task with status DONE.",
+  name: TOOLS_CONFIG.tasks.delete.name,
+  description: TOOLS_CONFIG.tasks.delete.description,
   parameters: {
     workspaceId: z
       .string()
@@ -164,86 +159,31 @@ export const deleteTaskTool: McpToolConfig = {
       .describe("The ID of the project that contains the task"),
     taskId: z.string().describe("The ID of the task to delete"),
   },
-  handler: async ({
-    workspaceId,
-    projectId,
-    taskId,
-  }: {
-    workspaceId: string;
-    projectId: string;
-    taskId: string;
-  }): Promise<McpResponse> => {
-    if (!workspaceId || typeof workspaceId !== "string") {
-      throw new Error("Workspace ID required to delete a task");
-    }
-    if (!projectId || typeof projectId !== "string") {
-      throw new Error("Project ID required to delete a task");
-    }
-    if (!taskId || typeof taskId !== "string") {
-      throw new Error("Task ID required to delete a task");
-    }
-
+  handler: async (params: TDeleteTaskSchema): Promise<McpResponse> => {
     try {
-      await api.delete(
-        `workspaces/${workspaceId}/projects/${projectId}/tasks/${taskId}`
+      await tasksService.remove(
+        params.workspaceId,
+        params.projectId,
+        params.taskId
       );
-    } catch (err: any) {
-      if (err?.response?.status === 403) {
+    } catch (error: any) {
+      if (error?.response?.status === 403) {
         // The task is left untouched — surface an actionable message so the
         // caller knows deletion is admin-only (not a task-status problem).
         throw new Error(
           "Delete failed: this Clockify token lacks admin permission to delete tasks " +
-            "(Clockify 403). The task was NOT deleted. To close it instead, use update-task " +
+            "(Clockify 403). The task was NOT deleted. To close it instead, use edit-task " +
             "with status DONE, or have a workspace admin delete it in the Clockify UI."
         );
       }
-      throw err;
+      throw new Error(`Failed to delete task: ${error.message}`);
     }
 
     return {
       content: [
         {
           type: "text",
-          text: `Task deleted successfully. ID: ${taskId}`,
-        },
-      ],
-    };
-  },
-};
-
-export const listTasksTool: McpToolConfig = {
-  name: "list-tasks",
-  description: "List tasks (activities) within a project. Tasks can be associated with time entries.",
-  parameters: {
-    workspaceId: z
-      .string()
-      .describe("The ID of the workspace"),
-    projectId: z
-      .string()
-      .describe("The ID of the project to get tasks from"),
-  },
-  handler: async ({ workspaceId, projectId }: { workspaceId: string; projectId: string }): Promise<McpResponse> => {
-    if (!workspaceId || typeof workspaceId !== "string") {
-      throw new Error("Workspace ID required to fetch tasks");
-    }
-    if (!projectId || typeof projectId !== "string") {
-      throw new Error("Project ID required to fetch tasks");
-    }
-
-    const data = await fetchAllPages<any>(`workspaces/${workspaceId}/projects/${projectId}/tasks`);
-    const tasks = data.map((task: any) => ({
-      id: task.id,
-      name: task.name,
-      projectId: task.projectId,
-      status: task.status,
-      assigneeIds: task.assigneeIds,
-    }));
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(tasks),
+          text: `Task deleted successfully. ID: ${params.taskId}`,
         },
       ],
     };

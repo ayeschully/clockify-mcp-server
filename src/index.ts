@@ -1,26 +1,52 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { api, SERVER_CONFIG } from "./config/api";
+import { setApiToken, SERVER_CONFIG } from "./config/api";
 import {
   createEntryTool,
   deleteEntryTool,
   editEntryTool,
   listEntriesTool,
 } from "./tools/entries";
-import { findProjectTool } from "./tools/projects";
-import { getCurrentUserTool } from "./tools/users";
+import { editProjectTool, findProjectTool } from "./tools/projects";
+import { getCurrentUserTool, listUsersTool } from "./tools/users";
+import { getHoursByClientTool, summaryReportTool } from "./tools/reports";
 import { findWorkspacesTool } from "./tools/workspaces";
-import { createTagTool, getTagsTool } from "./tools/tags";
-import { createTaskTool, updateTaskTool, deleteTaskTool, listTasksTool } from "./tools/tasks";
-import { getHoursByClientTool } from "./tools/reports";
+import { createTagTool, editTagTool, getTagsTool } from "./tools/tags";
+import {
+  createTaskTool,
+  deleteTaskTool,
+  editTaskTool,
+  listTasksTool,
+} from "./tools/tasks";
+import { McpToolConfig, McpToolConfigWithoutParameters } from "./types";
 import { z } from "zod";
-import { argv } from "process";
+import { argv, env } from "process";
 
 export const configSchema = z.object({
   clockifyApiToken: z.string().describe("Clockify API Token"),
 });
+
+const TOOLS: (McpToolConfig | McpToolConfigWithoutParameters)[] = [
+  getCurrentUserTool,
+  listUsersTool,
+  findWorkspacesTool,
+  summaryReportTool,
+  getHoursByClientTool,
+  findProjectTool,
+  editProjectTool,
+  createEntryTool,
+  listEntriesTool,
+  editEntryTool,
+  deleteEntryTool,
+  getTagsTool,
+  createTagTool,
+  editTagTool,
+  listTasksTool,
+  createTaskTool,
+  editTaskTool,
+  deleteTaskTool,
+];
 
 const server = new McpServer(SERVER_CONFIG);
 
@@ -29,110 +55,29 @@ export default function createStatelessServer({
 }: {
   config: z.infer<typeof configSchema>;
 }) {
-  api.defaults.headers.Authorization = `Bearer ${config.clockifyApiToken}`;
-  server.tool(
-    createEntryTool.name,
-    createEntryTool.description,
-    createEntryTool.parameters,
-    createEntryTool.handler
-  );
+  setApiToken(config.clockifyApiToken);
 
-  server.tool(
-    findProjectTool.name,
-    findProjectTool.description,
-    findProjectTool.parameters,
-    findProjectTool.handler
-  );
+  for (const tool of TOOLS) {
+    if ("parameters" in tool) {
+      server.tool(tool.name, tool.description, tool.parameters, tool.handler);
+    } else {
+      server.tool(tool.name, tool.description, tool.handler);
+    }
+  }
 
-  server.tool(
-    listEntriesTool.name,
-    listEntriesTool.description,
-    listEntriesTool.parameters,
-    listEntriesTool.handler
-  );
-
-  server.tool(
-    getCurrentUserTool.name,
-    getCurrentUserTool.description,
-    getCurrentUserTool.handler
-  );
-
-  server.tool(
-    findWorkspacesTool.name,
-    findWorkspacesTool.description,
-    findWorkspacesTool.handler
-  );
-
-  server.tool(
-    deleteEntryTool.name,
-    deleteEntryTool.description,
-    deleteEntryTool.parameters,
-    deleteEntryTool.handler
-  );
-
-  server.tool(
-    editEntryTool.name,
-    editEntryTool.description,
-    editEntryTool.parameters,
-    editEntryTool.handler
-  );
-
-  server.tool(
-    getTagsTool.name,
-    getTagsTool.description,
-    getTagsTool.parameters,
-    getTagsTool.handler
-  );
-
-  server.tool(
-    createTagTool.name,
-    createTagTool.description,
-    createTagTool.parameters,
-    createTagTool.handler
-  );
-
-  server.tool(
-    listTasksTool.name,
-    listTasksTool.description,
-    listTasksTool.parameters,
-    listTasksTool.handler
-  );
-
-  server.tool(
-    createTaskTool.name,
-    createTaskTool.description,
-    createTaskTool.parameters,
-    createTaskTool.handler
-  );
-
-  server.tool(
-    updateTaskTool.name,
-    updateTaskTool.description,
-    updateTaskTool.parameters,
-    updateTaskTool.handler
-  );
-
-  server.tool(
-    deleteTaskTool.name,
-    deleteTaskTool.description,
-    deleteTaskTool.parameters,
-    deleteTaskTool.handler
-  );
-
-  server.tool(
-    getHoursByClientTool.name,
-    getHoursByClientTool.description,
-    getHoursByClientTool.parameters,
-    getHoursByClientTool.handler
-  );
   return server.server;
 }
 
 (() => {
   if (argv.find((flag) => flag === "--local")) {
+    if (!env.CLOCKIFY_API_TOKEN) {
+      console.error("CLOCKIFY_API_TOKEN environment variable is required");
+      process.exit(1);
+    }
+
     createStatelessServer({
       config: {
-        clockifyApiToken: process.env.CLOCKIFY_API_TOKEN as string,
+        clockifyApiToken: env.CLOCKIFY_API_TOKEN,
       },
     });
     const transport = new StdioServerTransport();
