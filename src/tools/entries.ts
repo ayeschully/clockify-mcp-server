@@ -2,6 +2,8 @@ import { z } from "zod";
 import { TOOLS_CONFIG } from "../config/api";
 import { entriesService } from "../clockify-sdk/entries";
 import { usersService } from "../clockify-sdk/users";
+import { mergeEntryUpdate } from "../config/entry-merge";
+import { withRateLimitRetry } from "../config/concurrency";
 import {
   McpResponse,
   McpToolConfig,
@@ -183,24 +185,26 @@ export const editEntryTool: McpToolConfig = {
   },
   handler: async (params: TEditEntrySchema): Promise<McpResponse> => {
     try {
-      // Fetch current entry to get required fields that weren't provided
-      const current = await entriesService.getById(
-        params.workspaceId,
-        params.timeEntryId
+      // PUT is a full replace: fetch the current entry and merge the edits
+      // over it so omitted fields (project, task, tags, billable, custom
+      // field values) are preserved instead of cleared
+      const current = await withRateLimitRetry(() =>
+        entriesService.getById(params.workspaceId, params.timeEntryId)
       );
 
-      // Merge current values with provided params (params take precedence)
-      const result = await entriesService.update({
-        workspaceId: params.workspaceId,
-        timeEntryId: params.timeEntryId,
-        start: params.start ?? new Date(current.data.timeInterval.start),
-        end: params.end ?? new Date(current.data.timeInterval.end),
-        billable: params.billable ?? current.data.billable,
-        description: params.description ?? current.data.description,
-        projectId: params.projectId ?? current.data.projectId,
-        taskId: params.taskId ?? current.data.taskId,
-        tagIds: params.tagIds ?? current.data.tagIds,
+      const body = mergeEntryUpdate(current.data, {
+        start: params.start,
+        end: params.end,
+        billable: params.billable,
+        description: params.description,
+        projectId: params.projectId,
+        taskId: params.taskId,
+        tagIds: params.tagIds,
       });
+
+      const result = await withRateLimitRetry(() =>
+        entriesService.update(params.workspaceId, params.timeEntryId, body)
+      );
 
       const entryInfo = `Time entry updated successfully. ID: ${result.data.id} Name: ${result.data.description}`;
 

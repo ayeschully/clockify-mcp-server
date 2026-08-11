@@ -44,6 +44,10 @@ src/
 ## Clockify API gotchas
 
 - Auth header is `X-Api-Key` ONLY (set via `setApiToken`, never at module load — the token isn't available until config/env is read). Sending the API key as `Authorization: Bearer` is rejected with 401 "Multiple or none auth tokens present".
+- `PUT /time-entries/{id}` is a FULL REPLACE: omitted fields (project, task, tags, billable, custom field values) are cleared, not preserved. Every entry update MUST go through `mergeEntryUpdate()` (`config/entry-merge.ts`), which GETs the entry and merges edits over it. Never call `entriesService.update` with a partial body.
+- Locked (`isLocked`), approval-pending/approved (`approvalRequestId`) and invoiced entries reject edits at the API. The detailed report exposes these flags; bulk tools report such failures per item instead of aborting.
+- The detailed report (`POST reports/detailed`, Reports API host) is the only way to enumerate time entries with ids across ALL workspace members; the base API's entry list is per-user. Entry ids come back as `_id`, times/duration under `timeInterval`.
+- Project-level custom field values are stored as per-project DEFAULTS of workspace custom fields (`PATCH /projects/{id}/custom-fields/{fieldId}` with `defaultValue`). Custom fields require a paid Clockify plan.
 - A valid key whose account has no workspace membership gets 404 `"WORKSPACE with ID 'null' not found"` on `/user` and `[]` from `/workspaces` — that means the key was generated under the wrong Clockify account, not that the code is broken.
 - The Reports API is a separate host (`reports.api.clockify.me/v1`, `reportsApi` axios instance) and is the only way to aggregate time across all workspace members; the base API's time-entry list is always scoped to one user.
 - `PUT` endpoints are **full replaces**, not patches. For partial edits, GET the current resource and merge (see `editEntryTool` and `editTaskTool`). Project update is the exception: its fields are optional, so it patches cleanly.
@@ -56,15 +60,30 @@ src/
 
 | Resource | create | read | edit | delete |
 | --- | --- | --- | --- | --- |
-| Time entries | ✅ | ✅ | ✅ | ✅ |
-| Projects | ❌ | ✅ | ✅ | ❌ |
+| Time entries | ✅ | ✅ (per-user list + workspace-wide detailed report) | ✅ (single + bulk + move) | ✅ |
+| Projects | ❌ | ✅ (full objects incl. custom fields) | ✅ (+ merge-projects composite) | ❌ |
 | Tags | ✅ | ✅ | ✅ | ❌ |
 | Tasks | ✅ | ✅ | ✅ | ✅ |
 | Users | — | ✅ (current + list) | — | — |
-| Reports | — | ✅ (summary by project/user, hours by client) | — | — |
+| Reports | — | ✅ (summary, detailed w/ entry ids, hours by client) | — | — |
+| Custom fields | — | ✅ (list) | ✅ (set project value) | — |
 | Clients | ❌ | ❌ | ❌ | ❌ |
 
 Natural next additions: `create-project`, `delete-tag`, client tools, and a timer (start/stop running entry via `PATCH /time-entries` with no `end`).
+
+## Bulk / admin conventions
+
+- Bulk and composite tools (`bulk-edit-time-entries`, `move-time-entries-to-project`, `merge-projects`) default to `dryRun=true` and only write when `dryRun=false` is passed explicitly. Keep this default for any new bulk tool — the cost of an accidental bulk write far exceeds one extra call.
+- Bulk tools return per-item manifests with `before` snapshots (usable as undo files) and never abort the batch on one failure. Shared machinery: `clockify-sdk/entry-admin.ts` (move/bulk core), `config/concurrency.ts` (4-wide concurrency + 429 retry), `config/task-mapping.ts` (project-scoped task remapping: clear / match-by-name / fail-if-task-present).
+- Batches are capped at 500 items per call (`BULK_MAX_ITEMS`).
+- Clockify has NO native project-merge endpoint (checked Aug 2026); `merge-projects` is a composite over the detailed report + per-entry moves.
+
+## Required permissions
+
+- Workspace admin token: `merge-projects`, `set-project-custom-field`, `edit-project`, tag/task mutations, and any entry mutation on OTHER members' entries.
+- Manager or admin: `get-summary-report` / `get-detailed-report` across all members (regular members only see themselves).
+- Paid plan: custom fields.
+- 403s on entry edits usually mean locked/approved/invoiced time or a non-admin token — the error messages say which to check.
 
 ## Known constraints
 

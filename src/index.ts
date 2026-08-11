@@ -8,9 +8,22 @@ import {
   editEntryTool,
   listEntriesTool,
 } from "./tools/entries";
-import { editProjectTool, findProjectTool } from "./tools/projects";
+import {
+  editProjectTool,
+  findProjectTool,
+  mergeProjectsTool,
+} from "./tools/projects";
 import { getCurrentUserTool, listUsersTool } from "./tools/users";
-import { getHoursByClientTool, summaryReportTool } from "./tools/reports";
+import {
+  detailedReportTool,
+  getHoursByClientTool,
+  summaryReportTool,
+} from "./tools/reports";
+import { bulkEditEntriesTool, moveEntriesTool } from "./tools/bulk-entries";
+import {
+  listCustomFieldsTool,
+  setProjectCustomFieldTool,
+} from "./tools/custom-fields";
 import { findWorkspacesTool } from "./tools/workspaces";
 import { createTagTool, editTagTool, getTagsTool } from "./tools/tags";
 import {
@@ -33,12 +46,18 @@ const TOOLS: (McpToolConfig | McpToolConfigWithoutParameters)[] = [
   findWorkspacesTool,
   summaryReportTool,
   getHoursByClientTool,
+  detailedReportTool,
   findProjectTool,
   editProjectTool,
+  mergeProjectsTool,
   createEntryTool,
   listEntriesTool,
   editEntryTool,
   deleteEntryTool,
+  bulkEditEntriesTool,
+  moveEntriesTool,
+  listCustomFieldsTool,
+  setProjectCustomFieldTool,
   getTagsTool,
   createTagTool,
   editTagTool,

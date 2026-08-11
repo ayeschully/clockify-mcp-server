@@ -15,6 +15,12 @@ import { EditTaskSchema } from "../validation/tasks/edit-task-schema";
 import { CreateTaskSchema } from "../validation/tasks/create-task-schema";
 import { DeleteTaskSchema } from "../validation/tasks/delete-task-schema";
 import { SummaryReportSchema } from "../validation/reports/summary-report-schema";
+import { DetailedReportSchema } from "../validation/reports/detailed-report-schema";
+import { ListProjectsSchema } from "../validation/projects/list-projects-schema";
+import { SetProjectCustomFieldSchema } from "../validation/custom-fields/set-project-custom-field-schema";
+import { BulkEditEntriesSchema } from "../validation/entries/bulk-edit-entries-schema";
+import { MoveEntriesSchema } from "../validation/entries/move-entries-schema";
+import { MergeProjectsSchema } from "../validation/projects/merge-projects-schema";
 
 export type TCreateEntrySchema = z.infer<typeof CreateEntrySchema>;
 
@@ -37,6 +43,20 @@ export type TCreateTaskSchema = z.infer<typeof CreateTaskSchema>;
 export type TDeleteTaskSchema = z.infer<typeof DeleteTaskSchema>;
 
 export type TSummaryReportSchema = z.infer<typeof SummaryReportSchema>;
+
+export type TDetailedReportSchema = z.infer<typeof DetailedReportSchema>;
+
+export type TListProjectsSchema = z.infer<typeof ListProjectsSchema>;
+
+export type TSetProjectCustomFieldSchema = z.infer<
+  typeof SetProjectCustomFieldSchema
+>;
+
+export type TBulkEditEntriesSchema = z.infer<typeof BulkEditEntriesSchema>;
+
+export type TMoveEntriesSchema = z.infer<typeof MoveEntriesSchema>;
+
+export type TMergeProjectsSchema = z.infer<typeof MergeProjectsSchema>;
 
 export interface ClockifyWorkspace {
   id: string;

@@ -21,7 +21,7 @@ export function setApiToken(token: string) {
 
 export const SERVER_CONFIG = {
   name: "Clockify MCP Server",
-  version: "1.2.0",
+  version: "1.3.0",
   description:
     "A service that integrates with Clockify API to manage time entries",
 };
@@ -38,12 +38,17 @@ export const TOOLS_CONFIG = {
     list: {
       name: "get-projects",
       description:
-        "Get workspace projects id and name, the projects can be associated with time entries",
+        "Get workspace projects. Fetches ALL pages (never truncated). By default returns active projects with id, name and clientName; set full=true for complete objects including customFields, archived, clientId, billable, note, color, public and estimates. Use archived to include archived projects",
     },
     edit: {
       name: "edit-project",
       description:
         "Edit an existing project in a workspace (name, client, color, note, billable, visibility or archived state)",
+    },
+    merge: {
+      name: "merge-projects",
+      description:
+        "Merge one project into another: moves ALL time entries (across every workspace member) from the source project to the target, remaps or clears project-scoped tasks, optionally archives the source, and returns a full manifest. Processes up to 500 entries per call — re-run the same call until remainingEntries is 0. Runs as a dry-run plan by default; set dryRun=false explicitly to execute. Requires a workspace admin API token",
     },
   },
   users: {
@@ -69,6 +74,23 @@ export const TOOLS_CONFIG = {
       description:
         "Get total hours worked per client for a date range in a workspace, aggregated on the server. Returns a compact summary (hours per client + total) instead of raw time entries. Note: projects are grouped by their Clockify client name.",
     },
+    detailed: {
+      name: "get-detailed-report",
+      description:
+        "Get individual time entries WITH their ids across ALL workspace members in one paginated call, optionally filtered by users, projects or clients. Each entry includes id, user, project, task, description, times, duration, billable, tags and the mutability flags (isLocked, approvalRequestId, invoiced) needed before attempting edits. Use this instead of list-time-entries for workspace-wide auditing or to drive bulk corrections. Viewing other members' entries requires admin/manager permissions",
+    },
+  },
+  customFields: {
+    list: {
+      name: "list-custom-fields",
+      description:
+        "List the custom fields ('additional fields') defined on a workspace with their id, name, type and status, so callers can discover field ids for filtering or writing values",
+    },
+    setProjectValue: {
+      name: "set-project-custom-field",
+      description:
+        "Set the default value of a workspace custom field on a specific project (by field id or name). This is how project-level custom field data is stored in Clockify. Requires a workspace admin API token",
+    },
   },
   entries: {
     create: {
@@ -86,7 +108,18 @@ export const TOOLS_CONFIG = {
     },
     edit: {
       name: "edit-time-entry",
-      description: "Edit an existing time entry in a workspace",
+      description:
+        "Edit an existing time entry in a workspace. Only the supplied fields change; everything else (project, task, tags, billable, custom field values) is preserved",
+    },
+    bulkEdit: {
+      name: "bulk-edit-time-entries",
+      description:
+        "Edit up to 500 time entries in one call, each with its own field changes. Runs as a dry-run plan by default (returns before/after for every entry without writing); set dryRun=false to execute. Returns a per-entry success/failure manifest usable as an undo file. Editing other members' entries requires a workspace admin API token",
+    },
+    move: {
+      name: "move-time-entries-to-project",
+      description:
+        "Move up to 500 time entries to a different project with task remapping (clear, match-by-name or fail-if-task-present, since tasks are project-scoped). Runs as a dry-run plan by default; set dryRun=false to execute. Returns a per-entry manifest with before/after state. Moving other members' entries requires a workspace admin API token",
     },
   },
   tags: {

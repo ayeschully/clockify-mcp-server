@@ -1,10 +1,15 @@
 import { z } from "zod";
 import { TOOLS_CONFIG } from "../config/api";
-import { reportsService } from "../clockify-sdk/reports";
+import { mapDetailedEntry, reportsService } from "../clockify-sdk/reports";
 import { entriesService } from "../clockify-sdk/entries";
 import { projectsService } from "../clockify-sdk/projects";
 import { usersService } from "../clockify-sdk/users";
-import { McpResponse, McpToolConfig, TSummaryReportSchema } from "../types";
+import {
+  McpResponse,
+  McpToolConfig,
+  TDetailedReportSchema,
+  TSummaryReportSchema,
+} from "../types";
 
 function formatDuration(seconds: number): string {
   const hours = Math.floor(seconds / 3600);
@@ -62,6 +67,80 @@ export const summaryReportTool: McpToolConfig = {
       };
     } catch (error: any) {
       throw new Error(`Failed to get summary report: ${error.message}`);
+    }
+  },
+};
+
+export const detailedReportTool: McpToolConfig = {
+  name: TOOLS_CONFIG.reports.detailed.name,
+  description: TOOLS_CONFIG.reports.detailed.description,
+  parameters: {
+    workspaceId: z.string().describe("The id of the workspace to report on"),
+    start: z.coerce
+      .date()
+      .describe("Start of the reporting period, e.g. 2026-01-01"),
+    end: z.coerce
+      .date()
+      .describe("End of the reporting period, e.g. 2026-12-31"),
+    userIds: z
+      .array(z.string())
+      .optional()
+      .describe("Optional list of user ids to filter to. Omit for all members"),
+    projectIds: z
+      .array(z.string())
+      .optional()
+      .describe("Optional list of project ids to filter to"),
+    clientIds: z
+      .array(z.string())
+      .optional()
+      .describe("Optional list of client ids to filter to"),
+    page: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(1)
+      .describe("Page number, starting at 1"),
+    pageSize: z
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .optional()
+      .default(200)
+      .describe("Entries per page (max 1000)"),
+  },
+  handler: async (params: TDetailedReportSchema): Promise<McpResponse> => {
+    try {
+      const result = await reportsService.detailed(params);
+
+      const rawEntries = result.data?.timeentries ?? [];
+      const entries = rawEntries.map(mapDetailedEntry);
+      const reportedTotal = result.data?.totals?.[0]?.entriesCount;
+      const page = params.page ?? 1;
+      const pageSize = params.pageSize ?? 200;
+      const hasMorePages =
+        typeof reportedTotal === "number"
+          ? page * pageSize < reportedTotal
+          : entries.length === pageSize;
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              page,
+              pageSize,
+              entriesOnPage: entries.length,
+              totalEntries: reportedTotal ?? entries.length,
+              hasMorePages,
+              entries,
+            }),
+          },
+        ],
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to get detailed report: ${error.message}`);
     }
   },
 };

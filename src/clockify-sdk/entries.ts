@@ -4,7 +4,6 @@ import {
   TCreateEntrySchema,
   TFindEntrySchema,
   TDeleteEntrySchema,
-  TEditEntrySchema,
 } from "../types";
 import { URLSearchParams } from "node:url";
 import { fetchAllPages } from "../config/pagination";
@@ -47,12 +46,16 @@ function EntriesService(api: AxiosInstance) {
     );
   }
 
-  async function update(params: TEditEntrySchema) {
-    const { workspaceId, timeEntryId, ...rest } = params;
-
+  // PUT is a full replace — callers must send a complete body built with
+  // mergeEntryUpdate() so omitted fields aren't cleared on the entry
+  async function update(
+    workspaceId: string,
+    timeEntryId: string,
+    body: Record<string, unknown>
+  ) {
     return api.put(
       `workspaces/${workspaceId}/time-entries/${timeEntryId}`,
-      omitUndefined(rest)
+      body
     );
   }
 
