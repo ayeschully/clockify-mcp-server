@@ -14,22 +14,43 @@ export const listCustomFieldsTool: McpToolConfig = {
     workspaceId: z
       .string()
       .describe("The id of the workspace to list custom fields for"),
+    projectId: z
+      .string()
+      .optional()
+      .describe(
+        "Optional: also resolve each field's default value FOR THIS PROJECT (projectValue). This is where project-level custom field data lives"
+      ),
   },
   handler: async ({
     workspaceId,
+    projectId,
   }: {
     workspaceId: string;
+    projectId?: string;
   }): Promise<McpResponse> => {
     try {
-      const response = await customFieldsService.fetchAll(workspaceId);
+      const response = projectId
+        ? await customFieldsService.fetchForProject(workspaceId, projectId)
+        : await customFieldsService.fetchAll(workspaceId);
+
       const fields = (response.data ?? []).map((field: any) => ({
         id: field.id,
         name: field.name,
         type: field.type,
         status: field.status,
+        entityType: field.entityType,
+        required: field.required,
         placeholder: field.placeholder,
         allowedValues: field.allowedValues,
         onlyAdminCanEdit: field.onlyAdminCanEdit,
+        workspaceDefaultValue: field.workspaceDefaultValue,
+        ...(projectId
+          ? {
+              projectValue: (field.projectDefaultValues ?? []).find(
+                (pd: any) => pd.projectId === projectId
+              )?.value ?? null,
+            }
+          : {}),
       }));
 
       return {

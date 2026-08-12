@@ -6,6 +6,14 @@ function CustomFieldsService(api: AxiosInstance) {
     return api.get(`workspaces/${workspaceId}/custom-fields`);
   }
 
+  // Returns the workspace fields with their per-project default values
+  // (projectDefaultValues[]) — the project endpoint variant
+  async function fetchForProject(workspaceId: string, projectId: string) {
+    return api.get(
+      `workspaces/${workspaceId}/projects/${projectId}/custom-fields`
+    );
+  }
+
   // Sets the field's default value FOR THAT PROJECT — this is how Clockify
   // stores project-level custom field data ("additional fields" in the UI)
   async function setProjectDefault(
@@ -20,7 +28,7 @@ function CustomFieldsService(api: AxiosInstance) {
     );
   }
 
-  return { fetchAll, setProjectDefault };
+  return { fetchAll, fetchForProject, setProjectDefault };
 }
 
 export const customFieldsService = CustomFieldsService(api);

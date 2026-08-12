@@ -21,7 +21,7 @@ export function setApiToken(token: string) {
 
 export const SERVER_CONFIG = {
   name: "Clockify MCP Server",
-  version: "1.3.0",
+  version: "1.3.1",
   description:
     "A service that integrates with Clockify API to manage time entries",
 };
@@ -77,14 +77,14 @@ export const TOOLS_CONFIG = {
     detailed: {
       name: "get-detailed-report",
       description:
-        "Get individual time entries WITH their ids across ALL workspace members in one paginated call, optionally filtered by users, projects or clients. Each entry includes id, user, project, task, description, times, duration, billable, tags and the mutability flags (isLocked, approvalRequestId, invoiced) needed before attempting edits. Use this instead of list-time-entries for workspace-wide auditing or to drive bulk corrections. Viewing other members' entries requires admin/manager permissions",
+        "Get individual time entries WITH their ids across ALL workspace members in one paginated call, optionally filtered by users, projects or clients. Each entry includes id, user, project, task, description, times, duration, billable, tags, custom field values (with names) and the mutability flags (isLocked, approvalRequestId, invoiced) needed before attempting edits. Use this instead of list-time-entries for workspace-wide auditing or to drive bulk corrections. Viewing other members' entries requires admin/manager permissions",
     },
   },
   customFields: {
     list: {
       name: "list-custom-fields",
       description:
-        "List the custom fields ('additional fields') defined on a workspace with their id, name, type and status, so callers can discover field ids for filtering or writing values",
+        "List the custom fields ('additional fields') defined on a workspace with their id, name, type, status and allowed values, so callers can discover field ids for filtering or writing values. Pass projectId to also get each field's default value for that project (projectValue) — this is where project-level custom field data lives",
     },
     setProjectValue: {
       name: "set-project-custom-field",
@@ -100,7 +100,8 @@ export const TOOLS_CONFIG = {
     },
     list: {
       name: "list-time-entries",
-      description: "Get registered time entries from a workspace",
+      description:
+        "Get registered time entries from a workspace, including each entry's custom field values (name, type, value)",
     },
     delete: {
       name: "delete-time-entry",

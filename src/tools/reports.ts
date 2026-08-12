@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TOOLS_CONFIG } from "../config/api";
 import { mapDetailedEntry, reportsService } from "../clockify-sdk/reports";
+import { customFieldsService } from "../clockify-sdk/custom-fields";
 import { entriesService } from "../clockify-sdk/entries";
 import { projectsService } from "../clockify-sdk/projects";
 import { usersService } from "../clockify-sdk/users";
@@ -114,8 +115,23 @@ export const detailedReportTool: McpToolConfig = {
     try {
       const result = await reportsService.detailed(params);
 
+      // The detailed report returns custom fields as bare {customFieldId,
+      // value}; resolve names/types from the workspace field definitions.
+      // Enrichment is best-effort — the report still returns without it
+      const fieldInfoById = new Map<string, { name?: string; type?: string }>();
+      try {
+        const fields = await customFieldsService.fetchAll(params.workspaceId);
+        for (const field of fields.data ?? []) {
+          fieldInfoById.set(field.id, { name: field.name, type: field.type });
+        }
+      } catch {
+        // ignore — names simply stay undefined
+      }
+
       const rawEntries = result.data?.timeentries ?? [];
-      const entries = rawEntries.map(mapDetailedEntry);
+      const entries = rawEntries.map((entry: any) =>
+        mapDetailedEntry(entry, fieldInfoById)
+      );
       const reportedTotal = result.data?.totals?.[0]?.entriesCount;
       const page = params.page ?? 1;
       const pageSize = params.pageSize ?? 200;

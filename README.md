@@ -18,7 +18,7 @@ This MCP Server integrates with AI Tools to manage your time entries in Clockify
 | `edit-project` | Edit a project (name, client, color, note, billable, visibility, archived) | ✔ |
 | `merge-projects` | Move ALL entries from one project to another with task remapping; dry-run by default | ✔ |
 | `create-time-entry` | Register a new time entry | |
-| `list-time-entries` | Search time entries for one user (defaults to current user) | |
+| `list-time-entries` | Search time entries for one user (defaults to current user), incl. custom field values | |
 | `edit-time-entry` | Edit a time entry — omitted fields are preserved, never cleared | own entries: no; others: ✔ |
 | `bulk-edit-time-entries` | Edit up to 500 entries in one call; dry-run by default, returns before/after manifest | own entries: no; others: ✔ |
 | `move-time-entries-to-project` | Move up to 500 entries to another project with task remapping; dry-run by default | own entries: no; others: ✔ |
@@ -30,7 +30,7 @@ This MCP Server integrates with AI Tools to manage your time entries in Clockify
 | `create-task` | Create a task within a project | ✔ |
 | `edit-task` | Rename a task, mark it ACTIVE/DONE or reassign it | ✔ |
 | `delete-task` | Permanently delete a task | ✔ |
-| `list-custom-fields` | List workspace custom fields with ids and types | |
+| `list-custom-fields` | List workspace custom fields with ids, types and allowed values; `projectId` adds per-project default values | |
 | `set-project-custom-field` | Set a custom field's value on a project | ✔ |
 
 Bulk and merge tools default to `dryRun=true`: they return a full before/after manifest without writing anything until you explicitly pass `dryRun=false`. Locked, approved and invoiced entries cannot be modified; `get-detailed-report` exposes those flags so you can filter them out before a bulk run.

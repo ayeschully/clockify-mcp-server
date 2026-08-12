@@ -1,6 +1,6 @@
 {
   "name": "clockify-mcp-server",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "main": "index.js",
   "module": "./src/index.ts",
   "type": "module",
@@ -12,7 +12,7 @@
     "build": "npx @smithery/cli build",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/pagination.test.ts test/users.test.ts test/workspaces.test.ts test/entries.test.ts",
-    "test:unit": "node --import tsx --test test/pagination.test.ts test/entry-merge.test.ts test/task-mapping.test.ts test/concurrency.test.ts"
+    "test:unit": "node --import tsx --test test/pagination.test.ts test/entry-merge.test.ts test/task-mapping.test.ts test/concurrency.test.ts test/detailed-mapping.test.ts"
   },
   "license": "MIT",
   "engines": {

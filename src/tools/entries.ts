@@ -112,6 +112,12 @@ export const listEntriesTool: McpToolConfig = {
         tagIds: entry.tagIds || [],
         timeInterval: entry.timeInterval,
         billable: entry.billable,
+        customFieldValues: (entry.customFieldValues ?? []).map((cf: any) => ({
+          customFieldId: cf.customFieldId,
+          name: cf.name,
+          type: cf.type,
+          value: cf.value,
+        })),
       }));
 
       return {

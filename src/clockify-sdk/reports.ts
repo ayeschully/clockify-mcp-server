@@ -7,8 +7,15 @@ import { TDetailedReportSchema, TSummaryReportSchema } from "../types";
  * admin workflow needs, including the mutability flags (locked, approval,
  * invoiced) so bulk jobs can preflight instead of failing one entry at a
  * time.
+ *
+ * The detailed report returns per-entry customFields as {customFieldId,
+ * value} WITHOUT names; pass fieldInfoById (from the workspace custom
+ * fields endpoint) to enrich them.
  */
-export function mapDetailedEntry(entry: any): Record<string, unknown> {
+export function mapDetailedEntry(
+  entry: any,
+  fieldInfoById?: ReadonlyMap<string, { name?: string; type?: string }>
+): Record<string, unknown> {
   return {
     id: entry._id,
     userId: entry.userId,
@@ -34,6 +41,15 @@ export function mapDetailedEntry(entry: any): Record<string, unknown> {
     invoiced: Boolean(
       entry.invoicingInfo?.invoiceId ?? entry.invoicingInfo?.manuallyInvoiced
     ),
+    customFields: (entry.customFields ?? []).map((cf: any) => {
+      const info = fieldInfoById?.get(cf.customFieldId);
+      return {
+        customFieldId: cf.customFieldId,
+        name: info?.name,
+        type: info?.type,
+        value: cf.value,
+      };
+    }),
   };
 }
 
