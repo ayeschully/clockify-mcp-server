@@ -80,22 +80,61 @@ describe("mergeCustomFieldValues", () => {
     ]);
   });
 
-  test("null drops the field, which is how a full-replace PUT clears it", () => {
+  test("a blank edit is sent explicitly, because omission does NOT clear", () => {
+    // Verified against the live API: Clockify KEEPS any custom field that is
+    // missing from the body, so a cleared field has to be named with a null
     const merged = mergeCustomFieldValues(current, [
       { customFieldId: PS_PRODUCT_FIELD, value: null },
     ]);
 
     assert.deepStrictEqual(merged, [
       { customFieldId: LOCATION_FIELD, value: "Travel Time" },
+      { customFieldId: PS_PRODUCT_FIELD, value: null },
     ]);
   });
 
-  test("clearing a field the entry does not have is a no-op", () => {
+  test("an empty string edit clears the same way a null does", () => {
+    const merged = mergeCustomFieldValues(current, [
+      { customFieldId: PS_PRODUCT_FIELD, value: "" },
+    ]);
+
+    assert.deepStrictEqual(
+      merged.find((f) => f.customFieldId === PS_PRODUCT_FIELD),
+      { customFieldId: PS_PRODUCT_FIELD, value: null }
+    );
+  });
+
+  test("clearing a field the entry does not have still names it explicitly", () => {
     const merged = mergeCustomFieldValues(current, [
       { customFieldId: PROJECT_ID_FIELD, value: null },
     ]);
 
-    assert.deepStrictEqual(merged, current);
+    assert.deepStrictEqual(merged, [
+      ...current,
+      { customFieldId: PROJECT_ID_FIELD, value: null },
+    ]);
+  });
+
+  test("the typed-empty strategy sends the right blank per field type", () => {
+    const infoById = new Map([
+      [PS_PRODUCT_FIELD, { id: PS_PRODUCT_FIELD, name: "PS-Product", type: "TXT" }],
+      [LOCATION_FIELD, { id: LOCATION_FIELD, name: "Location", type: "DROPDOWN_MULTIPLE" }],
+    ]);
+
+    const merged = mergeCustomFieldValues(
+      current,
+      [
+        { customFieldId: PS_PRODUCT_FIELD, value: null },
+        { customFieldId: LOCATION_FIELD, value: null },
+      ],
+      infoById,
+      "typed-empty"
+    );
+
+    assert.deepStrictEqual(merged, [
+      { customFieldId: LOCATION_FIELD, value: [] },
+      { customFieldId: PS_PRODUCT_FIELD, value: "" },
+    ]);
   });
 });
 

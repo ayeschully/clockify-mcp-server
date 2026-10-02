@@ -120,7 +120,7 @@ export const TOOLS_CONFIG = {
     bulkEdit: {
       name: "bulk-edit-time-entries",
       description:
-        "Edit up to 500 time entries in one call, each with its own field changes. Runs as a dry-run plan by default (returns before/after for every entry without writing); set dryRun=false to execute. Returns a per-entry success/failure manifest usable as an undo file. Editing other members' entries requires a workspace admin API token",
+        "Edit up to 500 time entries in one call, each with its own field changes (description, times, project, task, tags, billable). It does NOT write custom fields — use set-time-entry-custom-fields for those; passing customFields here is rejected rather than silently ignored. Runs as a dry-run plan by default (returns before/after for every entry without writing); set dryRun=false to execute. Returns a per-entry success/failure manifest usable as an undo file. Editing other members' entries requires a workspace admin API token",
     },
     setCustomFields: {
       name: "set-time-entry-custom-fields",

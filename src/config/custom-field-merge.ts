@@ -48,22 +48,37 @@ export function sameCustomFieldValue(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * How a cleared cell is represented in the PUT body. Clockify accepts a
+ * literal null for most field types; `typed-empty` is the fallback for the
+ * ones that reject it.
+ */
+export type ClearStrategy = "null" | "typed-empty";
+
+/** The blank Clockify expects for a field type under `typed-empty`. */
+function emptyValueForType(type?: string): unknown {
+  return String(type ?? "").toUpperCase().includes("MULTIPLE") ? [] : "";
+}
+
+/**
  * Overlay custom field edits onto an entry's current values.
  *
- * PUT /time-entries/{id} is a full replace, so the body must carry every
- * value the entry should keep — fields the caller didn't name are passed
- * through untouched. An edit of `null` (or any blank value) drops the field
- * from the array, which is how a value is cleared under full-replace
- * semantics; a literal null is never sent.
+ * PUT /time-entries/{id} replaces the entry, but NOT its custom fields:
+ * verified against the live API, Clockify KEEPS any custom field missing
+ * from the `customFields` array rather than clearing it. So a cleared field
+ * must be named explicitly with a blank value — omitting it is a silent
+ * no-op that still reports success.
+ *
+ * Current values that are already blank are still dropped, since there is
+ * nothing to preserve and some field types reject a null echo. Fields the
+ * caller didn't name are passed through untouched.
  */
 export function mergeCustomFieldValues(
   current: readonly CustomFieldValue[],
-  edits: readonly CustomFieldValue[]
+  edits: readonly CustomFieldValue[],
+  infoById?: ReadonlyMap<string, CustomFieldInfo>,
+  clearStrategy: ClearStrategy = "null"
 ): CustomFieldValue[] {
   const merged = new Map<string, unknown>();
-  // Blank values are dropped rather than echoed back: a cell the entry
-  // already shows as empty must not go out as a literal null, which some
-  // field types reject
   for (const field of current) {
     if (!isEmptyCustomFieldValue(field.value)) {
       merged.set(field.customFieldId, field.value);
@@ -71,14 +86,31 @@ export function mergeCustomFieldValues(
   }
 
   for (const edit of edits) {
-    if (isEmptyCustomFieldValue(edit.value)) merged.delete(edit.customFieldId);
-    else merged.set(edit.customFieldId, edit.value);
+    if (!isEmptyCustomFieldValue(edit.value)) {
+      merged.set(edit.customFieldId, edit.value);
+      continue;
+    }
+    merged.set(
+      edit.customFieldId,
+      clearStrategy === "null"
+        ? null
+        : emptyValueForType(infoById?.get(edit.customFieldId)?.type)
+    );
   }
 
   return [...merged].map(([customFieldId, value]) => ({
     customFieldId,
     value,
   }));
+}
+
+/** Ids the edit set would clear, in the order they were given. */
+export function clearedFieldIds(
+  edits: readonly CustomFieldValue[]
+): string[] {
+  return edits
+    .filter((edit) => isEmptyCustomFieldValue(edit.value))
+    .map((edit) => edit.customFieldId);
 }
 
 /**

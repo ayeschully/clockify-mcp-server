@@ -28,6 +28,8 @@ export interface BulkItemResult {
   before?: EntrySnapshot;
   after?: Record<string, unknown>;
   changes?: CustomFieldChange[];
+  /** Set when the plain null clear was rejected and a typed blank was used */
+  clearStrategy?: string;
   /** Custom fields left alone because the entry already had a value */
   skippedFields?: { customFieldId: string; name?: string; value: unknown }[];
   taskAction?: string;

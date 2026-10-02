@@ -21,20 +21,25 @@ export const bulkEditEntriesTool: McpToolConfig = {
       .describe("The id of the workspace the entries belong to"),
     edits: z
       .array(
-        z.object({
-          timeEntryId: z.string().describe("The id of the entry to edit"),
-          description: z.string().optional(),
-          billable: z.boolean().optional(),
-          start: z.coerce.date().optional(),
-          end: z.coerce.date().optional(),
-          projectId: z.string().optional(),
-          taskId: z
-            .string()
-            .nullable()
-            .optional()
-            .describe("New task id, or null to clear the task"),
-          tagIds: z.array(z.string()).optional(),
-        })
+        z
+          .object({
+            timeEntryId: z.string().describe("The id of the entry to edit"),
+            description: z.string().optional(),
+            billable: z.boolean().optional(),
+            start: z.coerce.date().optional(),
+            end: z.coerce.date().optional(),
+            projectId: z.string().optional(),
+            taskId: z
+              .string()
+              .nullable()
+              .optional()
+              .describe("New task id, or null to clear the task"),
+            tagIds: z.array(z.string()).optional(),
+          })
+          // Unknown keys are rejected rather than stripped: a customFields
+          // array passed here used to be dropped in silence, so the call
+          // reported success having changed nothing
+          .strict("bulk-edit-time-entries cannot change custom fields. Use set-time-entry-custom-fields, which merges per field and verifies clears")
       )
       .min(1)
       .max(BULK_MAX_ITEMS)
