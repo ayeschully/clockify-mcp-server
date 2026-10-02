@@ -9,8 +9,10 @@ import {
 import { mergeEntryUpdate } from "../config/entry-merge";
 import { mapWithConcurrency, withRateLimitRetry } from "../config/concurrency";
 import {
+  ClearStrategy,
   CustomFieldInfo,
   CustomFieldValue,
+  clearedFieldIds,
   describeCustomFieldChanges,
   isEmptyCustomFieldValue,
   mergeCustomFieldValues,
@@ -147,17 +149,90 @@ async function writeOneEntry(
     return;
   }
 
-  const body = mergeEntryUpdate(entry, {
-    customFields: mergeCustomFieldValues(currentValues, writable),
-  });
-  result.after = body;
+  const cleared = clearedFieldIds(writable);
+  const buildBody = (strategy: ClearStrategy) =>
+    mergeEntryUpdate(entry, {
+      customFields: mergeCustomFieldValues(
+        currentValues,
+        writable,
+        fieldInfoById,
+        strategy
+      ),
+    });
 
-  if (!dryRun) {
-    await withRateLimitRetry(() =>
-      entriesService.update(workspaceId, edit.timeEntryId, body)
-    );
-    result.status = "updated";
+  result.after = buildBody("null");
+  if (dryRun) return;
+
+  await writeAndVerify(workspaceId, edit.timeEntryId, cleared, buildBody, result);
+  result.status = "updated";
+}
+
+/**
+ * PUT the entry, then — when the edit clears anything — read it back and
+ * confirm the cells really went blank.
+ *
+ * Clearing is the one operation Clockify can accept and then ignore: it
+ * answers 200 while leaving the old value in place, so without a read-back
+ * the tool reports "updated" for a write that did nothing. If the null form
+ * doesn't take, the typed-empty form ("" or []) is tried once before the
+ * entry is reported failed.
+ */
+async function writeAndVerify(
+  workspaceId: string,
+  timeEntryId: string,
+  cleared: readonly string[],
+  buildBody: (strategy: ClearStrategy) => Record<string, unknown>,
+  result: BulkItemResult
+): Promise<void> {
+  const strategies: ClearStrategy[] = ["null", "typed-empty"];
+
+  for (const [index, strategy] of strategies.entries()) {
+    const isLast = index === strategies.length - 1;
+    const body = buildBody(strategy);
+    result.after = body;
+
+    try {
+      await withRateLimitRetry(() =>
+        entriesService.update(workspaceId, timeEntryId, body)
+      );
+    } catch (error: any) {
+      // A rejected null is exactly what the typed-empty form is for
+      if (isLast || !cleared.length) throw error;
+      continue;
+    }
+
+    if (!cleared.length) return;
+
+    const stillSet = await findStillSet(workspaceId, timeEntryId, cleared);
+    if (!stillSet.length) {
+      if (strategy !== "null") result.clearStrategy = strategy;
+      return;
+    }
+    if (isLast) {
+      throw new Error(
+        `Clockify accepted the update but kept a value on ${stillSet.join(", ")}. The field may be required, admin-only, or not clearable through the API`
+      );
+    }
   }
+}
+
+/** Which of the cleared fields still hold a value after the write. */
+async function findStillSet(
+  workspaceId: string,
+  timeEntryId: string,
+  cleared: readonly string[]
+): Promise<string[]> {
+  const reread = await withRateLimitRetry(() =>
+    entriesService.getById(workspaceId, timeEntryId)
+  );
+  const after = new Map<string, unknown>(
+    (reread.data?.customFieldValues ?? []).map((cf: any) => [
+      cf.customFieldId,
+      cf.value,
+    ])
+  );
+
+  return cleared.filter((id) => !isEmptyCustomFieldValue(after.get(id)));
 }
 
 /** Entries that Clockify is likely to reject, flagged before the write. */

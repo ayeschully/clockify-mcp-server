@@ -8,6 +8,8 @@ import {
   backfillEntryCustomFieldsTool,
   setEntryCustomFieldsTool,
 } from "../src/tools/entry-custom-fields";
+import { bulkEditEntriesTool } from "../src/tools/bulk-entries";
+import { z } from "zod";
 
 /**
  * End-to-end cover for the two custom field write tools with a stubbed axios
@@ -69,6 +71,37 @@ const BASE_ENTRY = {
 /** The live entry the stubbed GET returns; tests mutate it to set up state. */
 let liveEntry: any;
 let puts: { url: string; body: any }[];
+/** Simulate a Clockify that accepts a blank value but never applies it. */
+let ignoreClears = false;
+
+const isBlank = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  value === "" ||
+  (Array.isArray(value) && value.length === 0);
+
+/**
+ * Model the verified server behaviour: a custom field MISSING from the body
+ * keeps its value, so only the fields actually named can change.
+ */
+function applyPut(body: any) {
+  const values = new Map<string, unknown>(
+    liveEntry.customFieldValues.map((cf: any) => [cf.customFieldId, cf.value])
+  );
+
+  for (const cf of body.customFields ?? []) {
+    if (isBlank(cf.value)) {
+      if (!ignoreClears) values.delete(cf.customFieldId);
+      continue;
+    }
+    values.set(cf.customFieldId, cf.value);
+  }
+
+  liveEntry.customFieldValues = [...values].map(([customFieldId, value]) => ({
+    customFieldId,
+    value,
+  }));
+}
 
 const reportEntry = (id: string, extra: Record<string, unknown> = {}) => ({
   _id: id,
@@ -99,7 +132,9 @@ function adapter(config: any): Promise<any> {
   const method = String(config.method).toUpperCase();
 
   if (method === "PUT" && url.includes("/time-entries/")) {
-    puts.push({ url, body: JSON.parse(config.data) });
+    const body = JSON.parse(config.data);
+    puts.push({ url, body });
+    applyPut(body);
     return ok({ id: ENTRY });
   }
   if (method === "GET" && /\/time-entries\/[^/?]+$/.test(url)) {
@@ -141,6 +176,7 @@ describe("set-time-entry-custom-fields", () => {
   const resetState = () => {
     liveEntry = structuredClone(BASE_ENTRY);
     puts = [];
+    ignoreClears = false;
   };
 
   test("dry run resolves names, plans the change and writes nothing", async () => {
@@ -225,7 +261,7 @@ describe("set-time-entry-custom-fields", () => {
     assert.strictEqual(result.unchanged, 1);
   });
 
-  test("null clears one field and leaves the others intact", async () => {
+  test("a cleared field is named explicitly, since omission does not clear", async () => {
     resetState();
 
     await call(setEntryCustomFieldsTool, {
@@ -240,8 +276,59 @@ describe("set-time-entry-custom-fields", () => {
     });
 
     const values = valuesOf(puts[0].body);
-    assert.ok(!values.has(F.mondayStatus), "a cleared field is omitted");
+    assert.ok(
+      values.has(F.mondayStatus),
+      "a cleared field must be present in the body, not omitted"
+    );
+    assert.strictEqual(values.get(F.mondayStatus), null);
     assert.strictEqual(values.get(F.location), "Travel Time");
+  });
+
+  test("a clear that takes effect is confirmed by a read-back", async () => {
+    resetState();
+
+    const result = await call(setEntryCustomFieldsTool, {
+      workspaceId: WS,
+      dryRun: false,
+      edits: [
+        {
+          timeEntryId: ENTRY,
+          customFields: [{ customFieldName: "Monday Status", value: null }],
+        },
+      ],
+    });
+
+    assert.strictEqual(puts.length, 1, "the null form should be enough");
+    assert.strictEqual(result.items[0].status, "updated");
+    assert.ok(
+      !liveEntry.customFieldValues.some(
+        (cf: any) => cf.customFieldId === F.mondayStatus
+      ),
+      "the field is actually blank afterwards"
+    );
+  });
+
+  test("a clear Clockify silently ignores is reported failed, not updated", async () => {
+    resetState();
+    ignoreClears = true;
+
+    const result = await call(setEntryCustomFieldsTool, {
+      workspaceId: WS,
+      dryRun: false,
+      edits: [
+        {
+          timeEntryId: ENTRY,
+          customFields: [{ customFieldName: "Monday Status", value: null }],
+        },
+      ],
+    });
+
+    // null first, then the typed-empty fallback, then give up
+    assert.strictEqual(puts.length, 2);
+    assert.strictEqual(puts[0].body.customFields.find((cf: any) => cf.customFieldId === F.mondayStatus).value, null);
+    assert.strictEqual(puts[1].body.customFields.find((cf: any) => cf.customFieldId === F.mondayStatus).value, "");
+    assert.strictEqual(result.items[0].status, "failed");
+    assert.match(result.items[0].error, /kept a value/);
   });
 
   test("a blank existing value is never echoed back as a literal null", async () => {
@@ -332,6 +419,7 @@ describe("backfill-entry-custom-fields-from-project", () => {
   const resetState = () => {
     liveEntry = structuredClone(BASE_ENTRY);
     puts = [];
+    ignoreClears = false;
   };
 
   test("dry run counts cells per field and excludes Monday Status", async () => {
@@ -500,5 +588,38 @@ describe("backfill manifest file", () => {
       /must end in \.json or \.csv/
     );
     assert.strictEqual(puts.length, 0, "nothing may be written before the path check");
+  });
+});
+
+describe("bulk-edit-time-entries custom field guard", () => {
+  // The MCP SDK validates with z.object(tool.parameters) before the handler
+  // runs, so the guard is asserted at that layer rather than through handler()
+  const schema = z.object(bulkEditEntriesTool.parameters as any);
+
+  test("a customFields array is rejected instead of silently dropped", () => {
+    const result = schema.safeParse({
+      workspaceId: WS,
+      edits: [
+        {
+          timeEntryId: ENTRY,
+          customFields: [{ customFieldId: F.projectId, value: null }],
+        },
+      ],
+    });
+
+    assert.strictEqual(result.success, false);
+    assert.match(
+      JSON.stringify((result as any).error.issues),
+      /set-time-entry-custom-fields/
+    );
+  });
+
+  test("the supported fields still validate", () => {
+    const result = schema.safeParse({
+      workspaceId: WS,
+      edits: [{ timeEntryId: ENTRY, description: "New text", billable: false }],
+    });
+
+    assert.strictEqual(result.success, true);
   });
 });
