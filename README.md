@@ -37,6 +37,8 @@ This MCP Server integrates with AI Tools to manage your time entries in Clockify
 
 Bulk and merge tools default to `dryRun=true`: they return a full before/after manifest without writing anything until you explicitly pass `dryRun=false`. Locked, approved and invoiced entries cannot be modified; `get-detailed-report` exposes those flags so you can filter them out before a bulk run.
 
+They also cap each call at 500 entries. `merge-projects` and `backfill-entry-custom-fields-from-project` return `remainingEntries` alongside the manifest — re-run the identical call until it reaches 0. Re-running is safe: entries already handled no longer match, and anything unchanged is reported `unchanged` rather than rewritten.
+
 `backfill-entry-custom-fields-from-project` skips locked, approved and invoiced entries by default (`skipBlocked`), re-checks `fill-empty` against the live entry at write time, and can offload its manifest to a `.json`/`.csv` file via `outputFile` for large runs.
 
 Clearing a custom field needs the field named explicitly with a blank value: Clockify **keeps** any custom field left out of the update body rather than clearing it, so `set-time-entry-custom-fields` sends an explicit null, re-reads the entry afterwards and reports the entry as failed if the old value survived.

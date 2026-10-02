@@ -21,7 +21,7 @@ export function setApiToken(token: string) {
 
 export const SERVER_CONFIG = {
   name: "Clockify MCP Server",
-  version: "1.3.1",
+  version: "1.4.0",
   description:
     "A service that integrates with Clockify API to manage time entries",
 };
