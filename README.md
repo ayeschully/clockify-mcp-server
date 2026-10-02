@@ -22,6 +22,7 @@ This MCP Server integrates with AI Tools to manage your time entries in Clockify
 | `edit-time-entry` | Edit a time entry — omitted fields are preserved, never cleared | own entries: no; others: ✔ |
 | `bulk-edit-time-entries` | Edit up to 500 entries in one call; dry-run by default, returns before/after manifest | own entries: no; others: ✔ |
 | `move-time-entries-to-project` | Move up to 500 entries to another project with task remapping; dry-run by default | own entries: no; others: ✔ |
+| `set-time-entry-custom-fields` | Write custom field values on up to 500 entries (the only tool that can); dry-run by default | own entries: no; others: ✔ |
 | `delete-time-entry` | Delete a time entry | own entries: no; others: ✔ |
 | `get-tags` | List tags in a workspace | |
 | `create-tag` | Create a new tag | ✔ |
@@ -32,8 +33,13 @@ This MCP Server integrates with AI Tools to manage your time entries in Clockify
 | `delete-task` | Permanently delete a task | ✔ |
 | `list-custom-fields` | List workspace custom fields with ids, types and allowed values; `projectId` adds per-project default values | |
 | `set-project-custom-field` | Set a custom field's value on a project | ✔ |
+| `backfill-entry-custom-fields-from-project` | Copy projects' current custom field defaults onto existing entries; dry-run by default | ✔ |
 
 Bulk and merge tools default to `dryRun=true`: they return a full before/after manifest without writing anything until you explicitly pass `dryRun=false`. Locked, approved and invoiced entries cannot be modified; `get-detailed-report` exposes those flags so you can filter them out before a bulk run.
+
+`backfill-entry-custom-fields-from-project` skips locked, approved and invoiced entries by default (`skipBlocked`), re-checks `fill-empty` against the live entry at write time, and can offload its manifest to a `.json`/`.csv` file via `outputFile` for large runs.
+
+Clockify copies a project's default custom field values onto a time entry **only when the entry is created** — changing a default later never reaches entries that already exist. `backfill-entry-custom-fields-from-project` is how you fill those in; it defaults to `fill-empty`, so it never overwrites a value someone set by hand.
 
 ## Using in Claude Desktop
 

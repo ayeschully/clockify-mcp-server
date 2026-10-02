@@ -1,4 +1,5 @@
 import { entriesService } from "./entries";
+import { CustomFieldChange } from "../config/custom-field-merge";
 import { tasksService } from "./tasks";
 import { mergeEntryUpdate, EntryEdits } from "../config/entry-merge";
 import {
@@ -23,9 +24,12 @@ export interface EntrySnapshot {
 
 export interface BulkItemResult {
   timeEntryId: string;
-  status: "planned" | "updated" | "failed";
+  status: "planned" | "updated" | "unchanged" | "failed";
   before?: EntrySnapshot;
   after?: Record<string, unknown>;
+  changes?: CustomFieldChange[];
+  /** Custom fields left alone because the entry already had a value */
+  skippedFields?: { customFieldId: string; name?: string; value: unknown }[];
   taskAction?: string;
   error?: string;
 }
@@ -43,7 +47,7 @@ export interface BulkManifest {
  * Snapshot the mutable fields of an entry before changing it, so bulk
  * manifests double as undo files.
  */
-function snapshotEntry(entry: any): EntrySnapshot {
+export function snapshotEntry(entry: any): EntrySnapshot {
   return {
     description: entry.description,
     billable: entry.billable,
@@ -59,7 +63,7 @@ function snapshotEntry(entry: any): EntrySnapshot {
   };
 }
 
-function errorMessage(error: any): string {
+export function errorMessage(error: any): string {
   const apiMessage = error?.response?.data?.message;
   const status = error?.response?.status;
   const base = apiMessage ?? error?.message ?? "Unknown error";
@@ -69,7 +73,7 @@ function errorMessage(error: any): string {
   return status ? `${base} (HTTP ${status})` : base;
 }
 
-function summarize(
+export function summarize(
   dryRun: boolean,
   items: BulkItemResult[],
   createdTasks: { id: string; name: string }[]

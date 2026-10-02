@@ -91,6 +91,11 @@ export const TOOLS_CONFIG = {
       description:
         "Set the default value of a workspace custom field on a specific project (by field id or name). This is how project-level custom field data is stored in Clockify. Requires a workspace admin API token",
     },
+    backfillEntries: {
+      name: "backfill-entry-custom-fields-from-project",
+      description:
+        "Copy each project's CURRENT default custom field values onto its existing time entries. Clockify only stamps defaults onto an entry when the entry is created, so entries created before a default was set stay empty forever - this is the only way to fill them. Defaults to the Monday fields (Project ID, PS-Product, PS Revenue, PS-Hours, Customer Netsuite ID) and to fill-empty mode, which never touches a cell that already has a value; Monday Status is excluded by default because it is a point-in-time snapshot. Covers every workspace member's entries. Runs as a dry-run plan by default; set dryRun=false to execute. Processes up to 500 entries per call - re-run until remainingEntries is 0. Requires a workspace admin API token",
+    },
   },
   entries: {
     create: {
@@ -116,6 +121,11 @@ export const TOOLS_CONFIG = {
       name: "bulk-edit-time-entries",
       description:
         "Edit up to 500 time entries in one call, each with its own field changes. Runs as a dry-run plan by default (returns before/after for every entry without writing); set dryRun=false to execute. Returns a per-entry success/failure manifest usable as an undo file. Editing other members' entries requires a workspace admin API token",
+    },
+    setCustomFields: {
+      name: "set-time-entry-custom-fields",
+      description:
+        "Write custom field values on up to 500 specific time entries (fields named by id or name; a value of null clears one). This is the only tool that can change an entry's custom fields - edit-time-entry and bulk-edit-time-entries only touch description, times, project, task, tags and billable. Every other field on the entry, including custom fields not named in the call, is preserved. Runs as a dry-run plan by default; set dryRun=false to execute. Returns a per-entry before/after manifest usable as an undo file. Editing other members' entries requires a workspace admin API token",
     },
     move: {
       name: "move-time-entries-to-project",

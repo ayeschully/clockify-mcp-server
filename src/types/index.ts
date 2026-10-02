@@ -21,6 +21,8 @@ import { SetProjectCustomFieldSchema } from "../validation/custom-fields/set-pro
 import { BulkEditEntriesSchema } from "../validation/entries/bulk-edit-entries-schema";
 import { MoveEntriesSchema } from "../validation/entries/move-entries-schema";
 import { MergeProjectsSchema } from "../validation/projects/merge-projects-schema";
+import { SetEntryCustomFieldsSchema } from "../validation/entries/set-entry-custom-fields-schema";
+import { BackfillEntryCustomFieldsSchema } from "../validation/entries/backfill-entry-custom-fields-schema";
 
 export type TCreateEntrySchema = z.infer<typeof CreateEntrySchema>;
 
@@ -57,6 +59,14 @@ export type TBulkEditEntriesSchema = z.infer<typeof BulkEditEntriesSchema>;
 export type TMoveEntriesSchema = z.infer<typeof MoveEntriesSchema>;
 
 export type TMergeProjectsSchema = z.infer<typeof MergeProjectsSchema>;
+
+export type TSetEntryCustomFieldsSchema = z.infer<
+  typeof SetEntryCustomFieldsSchema
+>;
+
+export type TBackfillEntryCustomFieldsSchema = z.infer<
+  typeof BackfillEntryCustomFieldsSchema
+>;
 
 export interface ClockifyWorkspace {
   id: string;

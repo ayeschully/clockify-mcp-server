@@ -24,6 +24,10 @@ import {
   listCustomFieldsTool,
   setProjectCustomFieldTool,
 } from "./tools/custom-fields";
+import {
+  backfillEntryCustomFieldsTool,
+  setEntryCustomFieldsTool,
+} from "./tools/entry-custom-fields";
 import { findWorkspacesTool } from "./tools/workspaces";
 import { createTagTool, editTagTool, getTagsTool } from "./tools/tags";
 import {
@@ -56,8 +60,10 @@ const TOOLS: (McpToolConfig | McpToolConfigWithoutParameters)[] = [
   deleteEntryTool,
   bulkEditEntriesTool,
   moveEntriesTool,
+  setEntryCustomFieldsTool,
   listCustomFieldsTool,
   setProjectCustomFieldTool,
+  backfillEntryCustomFieldsTool,
   getTagsTool,
   createTagTool,
   editTagTool,
